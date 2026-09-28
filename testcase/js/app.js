@@ -1,4 +1,6 @@
-const { createApp, ref, computed } = Vue;
+const { createApp, ref, computed, watch } = Vue;
+
+const STORAGE_KEY = 'qa_core_studio_plans_v1';
 
 createApp({
   setup() {
@@ -11,8 +13,8 @@ createApp({
 
     const ambiguousWords = ['正常', '正しく', '適切', '問題なく', '速やかに', '適当', 'エラーが起きない'];
 
-    // 初期サンプル計画データ
-    const plans = ref([
+    // デフォルトのサンプルデータ
+    const defaultPlans = [
       {
         id: 'plan-1',
         docId: 'TP-2026-SYS01-001',
@@ -46,7 +48,31 @@ createApp({
           { id: 1, ticketId: 'BUG-102', title: 'クーポン適用時の割引額計算エラー', severity: 'Critical', priority: 'High', status: 'Assigned' }
         ]
       }
-    ]);
+    ];
+
+    // LocalStorageからの読み込み（無ければデフォルト値をロード）
+    const loadPlans = () => {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch (e) {
+          console.error('Failed to load saved plans from LocalStorage', e);
+        }
+      }
+      return defaultPlans;
+    };
+
+    const plans = ref(loadPlans());
+
+    // plans配列の変更を監視し、自動でLocalStorageへ保存 (Deep Watch)
+    watch(
+      plans,
+      (newPlans) => {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(newPlans));
+      },
+      { deep: true }
+    );
 
     const activePlan = computed(() => plans.value.find(p => p.id === activePlanId.value) || null);
 
@@ -83,9 +109,11 @@ createApp({
       }
     };
 
+    // 全データ初期化（LocalStorageのキャッシュも削除）
     const resetAllData = () => {
-      if(confirm('警告: 全てのテスト計画データが完全に削除されます。よろしいですか？')) {
-        plans.value = [];
+      if(confirm('警告: 全てのテスト計画データが完全に削除されます。初期状態に戻しますか？')) {
+        localStorage.removeItem(STORAGE_KEY);
+        plans.value = JSON.parse(JSON.stringify(defaultPlans));
         closePlan();
         showSettingsModal.value = false;
       }
