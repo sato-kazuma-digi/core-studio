@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="ja" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QA Core Studio - ISO 29119 QA Platform</title>
+  
+  <!-- Tailwind CSS & 設定 -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="js/tailwind.config.js"></script>
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- カスタムスタイル -->
+  <link rel="stylesheet" href="css/style.css">
+
+  <!-- Vue 3 & ロジック -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <script src="js/app.js" defer></script>
+</head>
+<body class="min-h-screen selection:bg-cyan-500 selection:text-slate-950">
+  <div id="app" class="flex flex-col min-h-screen">
+
+    <!-- グローバルナビゲーションヘッダー -->
+    <header class="bg-dark-900/90 backdrop-blur border-b border-slate-800/80 sticky top-0 z-40 no-print">
+      <div class="max-w-[1700px] mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
+        
+        <!-- ロゴ & プロジェクト名 -->
+        <div class="flex items-center gap-3">
+          <div class="flex items-center gap-2 cursor-pointer" @click="closePlan">
+            <span class="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse"></span>
+            <span class="text-sm font-extrabold text-slate-100 tracking-wider">QA CORE</span>
+          </div>
+          <template v-if="currentTab !== 'plans' && activePlan">
+            <span class="text-slate-700">|</span>
+            <span class="text-xs text-slate-400 font-medium truncate max-w-[200px] sm:max-w-none">
+              {{ activePlan.projectName }}
+            </span>
+          </template>
+        </div>
+
+        <!-- 画面遷移ナビゲーション -->
+        <nav class="hidden md:flex items-center gap-1">
+          <template v-if="currentTab === 'plans'">
+            <span class="text-slate-400 text-sm font-bold ml-2 border-l border-slate-700 pl-4 flex items-center">
+              <i class="fa-solid fa-folder-tree text-cyan-400 mr-2"></i> テスト計画リポジトリ
+            </span>
+          </template>
+          <template v-else-if="activePlan">
+            <button @click="closePlan" class="px-3 py-1.5 text-xs text-slate-400 hover:text-slate-100 hover:bg-slate-800 rounded-lg transition-all flex items-center gap-1.5 mr-2">
+              <i class="fa-solid fa-arrow-left"></i> 一覧に戻る
+            </button>
+            <div class="flex items-center gap-1 bg-dark-950 p-1 rounded-xl border border-slate-800 shadow-inner">
+              <button @click="currentTab = 'dashboard'" :class="currentTab === 'dashboard' ? 'bg-slate-800 text-cyan-400 font-semibold shadow' : 'text-slate-400 hover:text-slate-200'" class="px-3.5 py-1 text-xs rounded-lg transition-all flex items-center gap-1.5">
+                <i class="fa-solid fa-chart-pie"></i> ダッシュボード
+              </button>
+              <button @click="currentTab = 'plan'" :class="currentTab === 'plan' ? 'bg-slate-800 text-cyan-400 font-semibold shadow' : 'text-slate-400 hover:text-slate-200'" class="px-3.5 py-1 text-xs rounded-lg transition-all flex items-center gap-1.5">
+                <i class="fa-solid fa-clipboard-list"></i> テスト計画書
+              </button>
+              <button @click="currentTab = 'spec'" :class="currentTab === 'spec' ? 'bg-slate-800 text-cyan-400 font-semibold shadow' : 'text-slate-400 hover:text-slate-200'" class="px-3.5 py-1 text-xs rounded-lg transition-all flex items-center gap-1.5">
+                <i class="fa-solid fa-list-check"></i> 仕様書 & 実行
+              </button>
+              <button @click="currentTab = 'defects'" :class="currentTab === 'defects' ? 'bg-slate-800 text-cyan-400 font-semibold shadow' : 'text-slate-400 hover:text-slate-200'" class="px-3.5 py-1 text-xs rounded-lg transition-all flex items-center gap-1.5">
+                <i class="fa-solid fa-bug"></i> 欠陥管理
+              </button>
+            </div>
+          </template>
+        </nav>
+
+        <!-- アクションボタン群 -->
+        <div class="flex items-center gap-2">
+          <template v-if="currentTab === 'plans'">
+             <label class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-lg border border-slate-700 transition cursor-pointer flex items-center gap-1">
+              <i class="fa-solid fa-file-import text-cyan-400"></i> ファイル読込
+              <input type="file" @change="importPlanJSON" accept=".json" class="hidden">
+            </label>
+          </template>
+          <template v-else>
+            <button @click="exportActivePlanJSON" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-lg border border-slate-700 transition flex items-center gap-1">
+              <i class="fa-solid fa-download text-cyan-400"></i> 個別ファイル保存
+            </button>
+            <button @click="exportCSV" class="px-2.5 py-1.5 bg-emerald-950/60 hover:bg-emerald-900/80 text-emerald-300 text-xs font-medium rounded-lg border border-emerald-800/80 transition flex items-center gap-1">
+              <i class="fa-solid fa-file-csv"></i> CSV出力
+            </button>
+          </template>
+          <span class="w-px h-6 bg-slate-700 mx-1"></span>
+          <button @click="showSettingsModal = true" title="システム設定・参照規格" class="w-8 h-8 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-cyan-400 text-sm rounded-lg border border-slate-700 transition flex items-center justify-center">
+            <i class="fa-solid fa-gear"></i>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- メインコンテンツ -->
+    <main class="flex-1 max-w-[1700px] w-full mx-auto p-4 sm:p-6">
+
+      <!-- PAGE 0: テスト計画リポジトリ -->
+      <div v-if="currentTab === 'plans'" class="space-y-6">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-dark-900 border border-slate-800 rounded-2xl p-6">
+          <div>
+            <h2 class="text-lg font-bold text-slate-100 flex items-center gap-2"><i class="fa-solid fa-folder-tree text-cyan-400"></i> テスト計画リポジトリ (Test Plan Directory)</h2>
+            <p class="text-xs text-slate-400 mt-1">管理対象のシステム・プロジェクトごとのテスト計画書一覧です。</p>
+          </div>
+          <button @click="createNewPlan" class="px-4 py-2 bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-xs font-bold rounded-xl shadow-lg shadow-cyan-500/10 transition flex items-center gap-1.5">
+            <i class="fa-solid fa-plus"></i> 新規テスト計画書を作成
+          </button>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          <div v-for="plan in plans" :key="plan.id" class="bg-dark-900 border border-slate-800 hover:border-slate-700 rounded-2xl p-6 transition flex flex-col justify-between space-y-4 shadow-xl group">
+            <div>
+              <div class="flex justify-between items-start mb-3">
+                <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-950 text-cyan-400 border border-slate-800">{{ plan.docId }}</span>
+                <span class="text-[10px] text-slate-500 font-mono"><i class="fa-regular fa-calendar"></i> {{ plan.createdAt }}</span>
+              </div>
+              <h3 class="text-base font-bold text-slate-100 mb-1 leading-snug">{{ plan.projectName }}</h3>
+              <p class="text-xs text-slate-400 font-medium">{{ plan.testLevel }} / {{ plan.testType }}</p>
+              <div class="grid grid-cols-2 gap-2 mt-4 pt-4 border-t border-slate-800/80 text-center">
+                <div class="bg-slate-950 p-2 rounded-xl border border-slate-800">
+                  <span class="text-[10px] text-slate-500 block mb-0.5">ケース数</span>
+                  <span class="text-sm font-bold text-slate-200 font-mono">{{ plan.testCases.length }} 件</span>
+                </div>
+                <div class="bg-slate-950 p-2 rounded-xl border border-slate-800">
+                  <span class="text-[10px] text-slate-500 block mb-0.5">バージョン</span>
+                  <span class="text-sm font-bold text-cyan-400 font-mono">{{ plan.version }}</span>
+                </div>
+              </div>
+            </div>
+            <div class="flex items-center gap-2 pt-2">
+              <button @click="openPlan(plan.id, 'dashboard')" class="flex-1 py-2 bg-slate-800 hover:bg-slate-700 group-hover:bg-cyan-500 group-hover:text-slate-950 text-cyan-400 text-xs font-bold rounded-xl border border-slate-700 group-hover:border-cyan-500 transition flex items-center justify-center gap-1.5">
+                <i class="fa-solid fa-arrow-right-to-bracket"></i> 開く（実行へ）
+              </button>
+              <button @click="openPlan(plan.id, 'plan')" title="計画書を編集" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-xl border border-slate-700 transition">
+                <i class="fa-solid fa-pen-to-square"></i>
+              </button>
+              <button @click="deletePlan(plan.id)" title="この計画を削除" class="px-3 py-2 bg-slate-800 hover:bg-rose-950 text-slate-500 hover:text-rose-400 text-xs rounded-xl border border-slate-700 hover:border-rose-800 transition">
+                <i class="fa-solid fa-trash-can"></i>
+              </button>
+            </div>
+          </div>
+          <div v-if="plans.length === 0" class="col-span-full py-12 text-center bg-dark-900 border border-slate-800 rounded-2xl">
+            <i class="fa-solid fa-folder-open text-4xl text-slate-700 mb-4"></i>
+            <p class="text-slate-400 text-sm">計画書がありません。「新規作成」から始めてください。</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- PAGE 1: ダッシュボード -->
+      <div v-if="currentTab === 'dashboard' && activePlan" class="space-y-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div class="bg-dark-900 border border-slate-800 rounded-2xl p-5 relative overflow-hidden">
+            <p class="text-xs font-medium text-slate-400">総テストケース数</p>
+            <h3 class="text-3xl font-extrabold text-slate-100 mt-2 font-mono">{{ metrics.total }}</h3>
+            <p class="text-[11px] text-slate-500 mt-2">設計済みテストウェア総数</p>
+          </div>
+          <div class="bg-dark-900 border border-slate-800 rounded-2xl p-5 relative overflow-hidden">
+            <p class="text-xs font-medium text-slate-400">テスト計画消化率</p>
+            <h3 class="text-3xl font-extrabold text-cyan-400 mt-2 font-mono">{{ metrics.progressRate }}%</h3>
+            <div class="w-full bg-slate-800 h-1.5 rounded-full mt-3 overflow-hidden">
+              <div class="bg-cyan-400 h-full rounded-full transition-all duration-500" :style="{ width: metrics.progressRate + '%' }"></div>
+            </div>
+          </div>
+          <div class="bg-dark-900 border border-slate-800 rounded-2xl p-5 relative overflow-hidden">
+            <p class="text-xs font-medium text-slate-400">テスト成功率 (Pass率)</p>
+            <h3 class="text-3xl font-extrabold text-emerald-400 mt-2 font-mono">{{ metrics.passRate }}%</h3>
+            <p class="text-[11px] text-emerald-500/80 mt-2">Pass: {{ metrics.passCount }} / 実行: {{ metrics.executed }}</p>
+          </div>
+          <div class="bg-dark-900 border border-slate-800 rounded-2xl p-5 relative overflow-hidden">
+            <p class="text-xs font-medium text-slate-400">欠陥検出数 (Fail)</p>
+            <h3 class="text-3xl font-extrabold text-rose-400 mt-2 font-mono">{{ metrics.failCount }}</h3>
+            <p class="text-[11px] text-rose-500/80 mt-2">未解決: {{ activePlan.defects.filter(d => d.status !== 'Closed').length }} 件</p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div class="lg:col-span-2 space-y-6">
+            <div class="bg-dark-900 border border-slate-800 rounded-2xl p-6">
+              <h3 class="text-sm font-bold text-slate-200 mb-4 flex items-center gap-2"><i class="fa-solid fa-chart-column text-cyan-400"></i> テスト実行ステータス構造分析</h3>
+              <div class="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-4">
+                <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 text-center"><span class="text-[11px] text-slate-400 block mb-1">Untested</span><span class="text-lg font-bold text-slate-300 font-mono">{{ metrics.untestedCount }}</span></div>
+                <div class="bg-emerald-950/30 p-3 rounded-xl border border-emerald-800/40 text-center"><span class="text-[11px] text-emerald-400 block mb-1">Pass</span><span class="text-lg font-bold text-emerald-400 font-mono">{{ metrics.passCount }}</span></div>
+                <div class="bg-rose-950/30 p-3 rounded-xl border border-rose-800/40 text-center"><span class="text-[11px] text-rose-400 block mb-1">Fail</span><span class="text-lg font-bold text-rose-400 font-mono">{{ metrics.failCount }}</span></div>
+                <div class="bg-amber-950/30 p-3 rounded-xl border border-amber-800/40 text-center"><span class="text-[11px] text-amber-400 block mb-1">Blocked</span><span class="text-lg font-bold text-amber-400 font-mono">{{ metrics.blockedCount }}</span></div>
+                <div class="bg-slate-800/40 p-3 rounded-xl border border-slate-700/40 text-center"><span class="text-[11px] text-slate-400 block mb-1">Skipped</span><span class="text-lg font-bold text-slate-400 font-mono">{{ metrics.skippedCount }}</span></div>
+              </div>
+              <div class="h-3 bg-slate-950 rounded-full overflow-hidden flex border border-slate-800">
+                <div v-if="metrics.total > 0" :style="{ width: (metrics.passCount/metrics.total*100) + '%' }" class="bg-emerald-500 h-full"></div>
+                <div v-if="metrics.total > 0" :style="{ width: (metrics.failCount/metrics.total*100) + '%' }" class="bg-rose-500 h-full"></div>
+                <div v-if="metrics.total > 0" :style="{ width: (metrics.blockedCount/metrics.total*100) + '%' }" class="bg-amber-500 h-full"></div>
+                <div v-if="metrics.total > 0" :style="{ width: (metrics.skippedCount/metrics.total*100) + '%' }" class="bg-slate-600 h-full"></div>
+              </div>
+            </div>
+
+            <div class="bg-dark-900 border border-slate-800 rounded-2xl p-6">
+              <div class="flex justify-between items-center mb-4">
+                <h3 class="text-sm font-bold text-slate-200 flex items-center gap-2"><i class="fa-solid fa-list text-cyan-400"></i> テストケース概要一覧 (Quick Review)</h3>
+                <button @click="currentTab = 'spec'" class="text-xs text-cyan-400 hover:underline">詳細編集へ <i class="fa-solid fa-arrow-right"></i></button>
+              </div>
+              <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr class="bg-slate-950 text-slate-400 border-b border-slate-800 text-[10px] uppercase font-mono">
+                      <th class="p-2.5 w-32">ID</th><th class="p-2.5 w-36">カテゴリ</th><th class="p-2.5">テスト目的（概要）</th><th class="p-2.5 w-24 text-center">ステータス</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-800/60">
+                    <tr v-for="tc in activePlan.testCases.slice(0, 5)" :key="tc.id" class="hover:bg-slate-850/60 transition">
+                      <td class="p-2.5 font-mono text-cyan-400 font-semibold">{{ tc.caseId }}</td>
+                      <td class="p-2.5 text-slate-300">{{ tc.category }}</td>
+                      <td class="p-2.5 text-slate-300 truncate max-w-xs" :title="tc.objective">{{ tc.objective || '-' }}</td>
+                      <td class="p-2.5 text-center"><span :class="statusBadgeStyle(tc.status)" class="px-2 py-0.5 rounded text-[10px] font-bold border">{{ tc.status }}</span></td>
+                    </tr>
+                    <tr v-if="activePlan.testCases.length === 0"><td colspan="4" class="p-4 text-center text-slate-500">ケースが登録されていません。</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-dark-900 border border-slate-800 rounded-2xl p-6">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-sm font-bold text-slate-200 flex items-center gap-2"><i class="fa-solid fa-calculator text-cyan-400"></i> 品質メトリクス指標</h3>
+              <button @click="showIsoModal = true" class="px-2 py-1 bg-slate-800 text-cyan-400 text-xs font-semibold rounded-lg border border-slate-700 flex items-center gap-1"><i class="fa-solid fa-circle-question"></i> ISO規格ヘルプ</button>
+            </div>
+            <div class="space-y-4">
+              <div class="bg-slate-950 p-4 rounded-xl border border-slate-800">
+                <div class="flex justify-between items-center"><span class="text-xs text-slate-300 font-medium">欠陥除去効率 (DRE)</span><span class="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-950 text-cyan-400 border border-cyan-800">目標: ≥90%</span></div>
+                <div class="text-2xl font-extrabold text-cyan-400 mt-1 font-mono">{{ metrics.dre }}%</div>
+                <p class="text-[11px] text-slate-500 mt-1 font-mono">DRE = D_int / (D_int + D_ext) * 100</p>
+              </div>
+              <div class="bg-slate-950 p-4 rounded-xl border border-slate-800">
+                <div class="flex justify-between items-center"><span class="text-xs text-slate-300 font-medium">欠陥検出密度</span><span class="text-[10px] font-mono text-slate-400">KLOC対比</span></div>
+                <div class="text-2xl font-extrabold text-slate-200 mt-1 font-mono">{{ (metrics.failCount / 1.5).toFixed(2) }} <span class="text-xs font-normal text-slate-400">件/KLOC</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PAGE 2: テスト計画書 -->
+      <div v-if="currentTab === 'plan' && activePlan" class="space-y-6">
+        <div class="bg-dark-900 border border-slate-800 rounded-2xl p-6 space-y-6">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-800 pb-4 gap-2">
+            <h2 class="text-base font-bold text-slate-100 flex items-center gap-2"><i class="fa-solid fa-clipboard-list text-cyan-400"></i> テスト計画書ガバナンス（ISO/IEC/IEEE 29119-3）</h2>
+            <span class="text-xs text-slate-500 font-mono px-2 py-1 bg-slate-950 rounded border border-slate-800">ISO/IEC/IEEE 29119-3 Clause 7 準拠</span>
+          </div>
+
+          <div>
+            <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3 flex items-center gap-1.5"><i class="fa-solid fa-id-card text-cyan-400"></i> 1. 管理・識別情報 (Document Metadata)</h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div><label class="block text-xs font-semibold text-slate-400 mb-1.5">ドキュメントID</label><input type="text" v-model="activePlan.docId" class="w-full bg-slate-950 text-slate-100 text-xs font-mono border border-slate-800 rounded-xl p-2.5 focus:outline-none focus:border-cyan-500"></div>
+              <div><label class="block text-xs font-semibold text-slate-400 mb-1.5">プロジェクト / システム名</label><input type="text" v-model="activePlan.projectName" class="w-full bg-slate-950 text-slate-100 text-xs border border-slate-800 rounded-xl p-2.5 focus:outline-none focus:border-cyan-500"></div>
+              <div><label class="block text-xs font-semibold text-slate-400 mb-1.5">バージョン / 改訂</label><input type="text" v-model="activePlan.version" class="w-full bg-slate-950 text-slate-100 text-xs font-mono border border-slate-800 rounded-xl p-2.5 focus:outline-none focus:border-cyan-500"></div>
+              <div><label class="block text-xs font-semibold text-slate-400 mb-1.5">テストレベル</label><select v-model="activePlan.testLevel" class="w-full bg-slate-950 text-slate-100 text-xs border border-slate-800 rounded-xl p-2.5 focus:outline-none focus:border-cyan-500"><option>単体テスト (UT / コンポーネント)</option><option>結合テスト (IT / 統合)</option><option>システムテスト (ST)</option><option>受入テスト (UAT)</option></select></div>
+              <div><label class="block text-xs font-semibold text-slate-400 mb-1.5">テストタイプ</label><select v-model="activePlan.testType" class="w-full bg-slate-950 text-slate-100 text-xs border border-slate-800 rounded-xl p-2.5 focus:outline-none focus:border-cyan-500"><option>機能テスト</option><option>非機能: 性能・負荷テスト</option><option>非機能: セキュリティテスト</option><option>回帰テスト (リグレッション)</option></select></div>
+              <div><label class="block text-xs font-semibold text-slate-400 mb-1.5">作成責任者 / QAマネージャー</label><input type="text" v-model="activePlan.author" class="w-full bg-slate-950 text-slate-100 text-xs border border-slate-800 rounded-xl p-2.5 focus:outline-none focus:border-cyan-500"></div>
+            </div>
+          </div>
+
+          <div class="pt-4 border-t border-slate-800/80">
+            <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3 flex items-center gap-1.5"><i class="fa-solid fa-bullseye text-cyan-400"></i> 2. スコープ境界定義 (Test Scope)</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div><label class="block text-xs font-semibold text-emerald-400 mb-1.5 flex items-center gap-1"><i class="fa-solid fa-circle-check"></i> テスト対象範囲 (In of Scope)</label><textarea v-model="activePlan.inScope" rows="4" placeholder="検証対象機能" class="w-full bg-slate-950 text-slate-200 text-xs font-mono border border-slate-800 rounded-xl p-3 focus:outline-none focus:border-cyan-500 resize-y"></textarea></div>
+              <div><label class="block text-xs font-semibold text-rose-400 mb-1.5 flex items-center gap-1"><i class="fa-solid fa-circle-xmark"></i> テスト対象外事項 (Out of Scope)</label><textarea v-model="activePlan.outOfScope" rows="4" placeholder="対象外機能とその理由" class="w-full bg-slate-950 text-slate-200 text-xs font-mono border border-slate-800 rounded-xl p-3 focus:outline-none focus:border-cyan-500 resize-y"></textarea></div>
+            </div>
+          </div>
+
+          <div class="pt-4 border-t border-slate-800/80">
+            <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3 flex items-center gap-1.5"><i class="fa-solid fa-sliders text-cyan-400"></i> 3. プロセス制御基準 (Test Criteria)</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div><label class="block text-xs font-semibold text-slate-400 mb-1.5">開始受領条件 (Entry Criteria)</label><textarea v-model="activePlan.entryCriteria" rows="3" placeholder="開始前提条件" class="w-full bg-slate-950 text-slate-200 text-xs border border-slate-800 rounded-xl p-3 focus:outline-none focus:border-cyan-500 resize-y"></textarea></div>
+              <div><label class="block text-xs font-semibold text-slate-400 mb-1.5">終了判定基準 (Exit Criteria)</label><textarea v-model="activePlan.exitCriteria" rows="3" placeholder="完了判断の定量的基準" class="w-full bg-slate-950 text-slate-200 text-xs border border-slate-800 rounded-xl p-3 focus:outline-none focus:border-cyan-500 resize-y"></textarea></div>
+            </div>
+          </div>
+
+          <div class="pt-4 border-t border-slate-800/80">
+            <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3 flex items-center gap-1.5"><i class="fa-solid fa-server text-cyan-400"></i> 4. 実行環境 & リスク対策 (Environment & Risks)</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div><label class="block text-xs font-semibold text-slate-400 mb-1.5">テスト環境・ツール設定</label><textarea v-model="activePlan.testEnvironment" rows="3" placeholder="ハード、ネットワーク、CI/CD" class="w-full bg-slate-950 text-slate-200 text-xs border border-slate-800 rounded-xl p-3 focus:outline-none focus:border-cyan-500 resize-y"></textarea></div>
+              <div><label class="block text-xs font-semibold text-slate-400 mb-1.5">リスク識別と対策 (Contingency Plan)</label><textarea v-model="activePlan.riskStrategy" rows="3" placeholder="遅延・障害リスクと緩和策" class="w-full bg-slate-950 text-slate-200 text-xs border border-slate-800 rounded-xl p-3 focus:outline-none focus:border-cyan-500 resize-y"></textarea></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PAGE 3: テスト仕様書 & 実行 -->
+      <div v-if="currentTab === 'spec' && activePlan" class="space-y-4">
+        <div class="bg-dark-900 border border-slate-800 rounded-2xl p-4 flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-4">
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="text-xs font-bold text-slate-400 flex items-center gap-1"><i class="fa-solid fa-wand-magic-sparkles text-cyan-400"></i> 技法生成:</span>
+            <button @click="addTemplate('boundary')" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-300 text-xs font-medium rounded-lg border border-slate-700 transition">境界値分析</button>
+            <button @click="addTemplate('decision')" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-300 text-xs font-medium rounded-lg border border-slate-700 transition">デシジョンテーブル</button>
+            <button @click="addTemplate('state')" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-300 text-xs font-medium rounded-lg border border-slate-700 transition">状態遷移</button>
+          </div>
+
+          <div class="flex items-center gap-3">
+            <div class="relative flex-1 sm:w-64">
+              <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-500 text-xs"></i>
+              <input type="text" v-model="filterText" placeholder="検索..." class="w-full bg-slate-950 text-slate-200 text-xs border border-slate-700 rounded-xl pl-8 pr-3 py-2 focus:outline-none focus:border-cyan-500">
+            </div>
+            <select v-model="filterStatus" class="bg-slate-950 text-slate-200 text-xs border border-slate-700 rounded-xl px-3 py-2 focus:outline-none focus:border-cyan-500">
+              <option value="">全て</option><option value="Untested">Untested</option><option value="Pass">Pass</option><option value="Fail">Fail</option><option value="Blocked">Blocked</option><option value="Skipped">Skipped</option>
+            </select>
+            <button @click="addTestCase" class="px-4 py-2 bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-xs font-bold rounded-xl shadow-lg shadow-cyan-500/10 transition flex items-center gap-1.5 whitespace-nowrap">
+              <i class="fa-solid fa-plus"></i> 新規ケース
+            </button>
+          </div>
+        </div>
+
+        <div class="bg-dark-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse min-w-[1400px]">
+              <thead>
+                <tr class="bg-slate-950/80 text-slate-400 text-[11px] font-bold uppercase tracking-wider border-b border-slate-800">
+                  <th class="p-3.5 w-12 text-center">#</th><th class="p-3.5 w-36">テストケースID</th><th class="p-3.5 w-44">機能階層 / 技法</th><th class="p-3.5 w-52">テスト目的</th><th class="p-3.5 w-44">事前前提条件</th><th class="p-3.5 w-64">操作手順</th><th class="p-3.5 w-44">投入データ</th><th class="p-3.5 w-64">期待される挙動</th><th class="p-3.5 w-44">判定基準</th><th class="p-3.5 w-32">ステータス</th><th class="p-3.5 w-32">エビデンス</th><th class="p-3.5 w-16 text-center no-print">操作</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-800/60 text-xs">
+                <tr v-for="(tc, index) in filteredTestCases" :key="tc.id" class="hover:bg-slate-850/50 transition-colors">
+                  <td class="p-2.5 text-center text-slate-500 font-mono">{{ index + 1 }}</td>
+                  <td class="p-2.5"><input type="text" v-model="tc.caseId" class="w-full bg-slate-950 text-cyan-400 font-mono font-bold text-xs border border-slate-800 rounded-lg p-1.5 focus:outline-none focus:border-cyan-500"></td>
+                  <td class="p-2.5 space-y-1">
+                    <input type="text" v-model="tc.category" placeholder="カテゴリ" class="w-full bg-slate-950 text-slate-200 border border-slate-800 rounded-lg p-1.5 focus:outline-none focus:border-cyan-500">
+                    <select v-model="tc.technique" class="w-full bg-slate-950 text-slate-400 text-[10px] border border-slate-800 rounded-lg p-1">
+                      <option value="">技法指定なし</option><option value="同値分割">同値分割</option><option value="境界値分析">境界値分析</option><option value="デシジョンテーブル">デシジョンテーブル</option><option value="状態遷移">状態遷移</option>
+                    </select>
+                  </td>
+                  <td class="p-2.5"><textarea v-model="tc.objective" rows="3" class="w-full bg-slate-950 text-slate-200 border border-slate-800 rounded-lg p-1.5 focus:outline-none focus:border-cyan-500 resize-y"></textarea></td>
+                  <td class="p-2.5"><textarea v-model="tc.precondition" rows="3" class="w-full bg-slate-950 text-slate-300 border border-slate-800 rounded-lg p-1.5 focus:outline-none focus:border-cyan-500 resize-y"></textarea></td>
+                  <td class="p-2.5"><textarea v-model="tc.steps" rows="3" class="w-full bg-slate-950 text-slate-200 font-mono text-[11px] border border-slate-800 rounded-lg p-1.5 focus:outline-none focus:border-cyan-500 resize-y"></textarea></td>
+                  <td class="p-2.5"><textarea v-model="tc.testData" rows="3" class="w-full bg-slate-950 text-slate-300 font-mono text-[11px] border border-slate-800 rounded-lg p-1.5 focus:outline-none focus:border-cyan-500 resize-y"></textarea></td>
+                  <td class="p-2.5">
+                    <textarea v-model="tc.expected" @input="checkAmbiguity(tc)" rows="3" class="w-full bg-slate-950 text-slate-200 border rounded-lg p-1.5 focus:outline-none resize-y" :class="tc.hasAmbiguousWord ? 'border-amber-500/80 bg-amber-950/20' : 'border-slate-800 focus:border-cyan-500'"></textarea>
+                    <div v-if="tc.hasAmbiguousWord" class="mt-1 text-[10px] text-amber-400 bg-amber-950/60 p-1 rounded flex items-center gap-1"><i class="fa-solid fa-triangle-exclamation"></i> 主観的表現を排除してください</div>
+                  </td>
+                  <td class="p-2.5"><textarea v-model="tc.criteria" rows="3" class="w-full bg-slate-950 text-slate-300 border border-slate-800 rounded-lg p-1.5 focus:outline-none focus:border-cyan-500 resize-y"></textarea></td>
+                  <td class="p-2.5">
+                    <select v-model="tc.status" :class="statusBadgeStyle(tc.status)" class="w-full p-2 font-bold rounded-lg border text-xs cursor-pointer focus:outline-none">
+                      <option value="Untested">Untested</option><option value="Pass">Pass</option><option value="Fail">Fail</option><option value="Blocked">Blocked</option><option value="Skipped">Skipped</option>
+                    </select>
+                  </td>
+                  <td class="p-2.5"><input type="text" v-model="tc.evidence" placeholder="JIRA-101" class="w-full bg-slate-950 text-slate-300 font-mono text-[11px] border border-slate-800 rounded-lg p-1.5 focus:outline-none focus:border-cyan-500"></td>
+                  <td class="p-2.5 text-center no-print">
+                    <div class="flex justify-center items-center gap-2">
+                      <button @click="duplicateTestCase(index)" title="複製" class="text-slate-500 hover:text-cyan-400 transition"><i class="fa-regular fa-copy"></i></button>
+                      <button @click="removeTestCase(tc.id)" title="削除" class="text-slate-500 hover:text-rose-400 transition"><i class="fa-regular fa-trash-can"></i></button>
+                    </div>
+                  </td>
+                </tr>
+                <tr v-if="filteredTestCases.length === 0"><td colspan="12" class="p-12 text-center text-slate-500">該当するテストケースが存在しません。</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- PAGE 4: 欠陥管理 -->
+      <div v-if="currentTab === 'defects' && activePlan" class="space-y-6">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div class="bg-dark-900 border border-slate-800 rounded-2xl p-6 lg:col-span-1">
+            <h3 class="text-sm font-bold text-slate-200 mb-4 flex items-center gap-2"><i class="fa-solid fa-border-all text-cyan-400"></i> 重要度 × 優先度ヒートマップ</h3>
+            <div class="grid grid-cols-3 gap-2 text-center text-xs font-mono">
+              <div class="bg-rose-950/80 border border-rose-700/80 p-3 rounded-xl"><span class="block text-[10px] text-rose-300 font-sans">Blocker/High</span><span class="text-xl font-bold text-rose-400 mt-1 block">{{ activePlan.defects.filter(d => d.severity === 'Blocker' && d.priority === 'High').length }}</span></div>
+              <div class="bg-rose-950/40 border border-rose-800/50 p-3 rounded-xl"><span class="block text-[10px] text-rose-300 font-sans">Critical/High</span><span class="text-xl font-bold text-rose-400 mt-1 block">{{ activePlan.defects.filter(d => d.severity === 'Critical' && d.priority === 'High').length }}</span></div>
+              <div class="bg-amber-950/40 border border-amber-800/50 p-3 rounded-xl"><span class="block text-[10px] text-amber-300 font-sans">Major/Med</span><span class="text-xl font-bold text-amber-400 mt-1 block">{{ activePlan.defects.filter(d => d.priority === 'Medium').length }}</span></div>
+            </div>
+          </div>
+
+          <div class="bg-dark-900 border border-slate-800 rounded-2xl p-6 lg:col-span-2">
+            <div class="flex justify-between items-center mb-4">
+              <h3 class="text-sm font-bold text-slate-200 flex items-center gap-2"><i class="fa-solid fa-bug text-rose-400"></i> 登録欠陥（バグ）トラッキング</h3>
+              <button @click="addDefect" class="px-3 py-1.5 bg-rose-950/80 hover:bg-rose-900 text-rose-300 text-xs font-bold rounded-lg border border-rose-800 transition">+ 欠陥報告</button>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr class="bg-slate-950 text-slate-400 border-b border-slate-800 uppercase font-mono text-[10px]">
+                    <th class="p-2.5">ID</th><th class="p-2.5">タイトル・概要</th><th class="p-2.5">重要度</th><th class="p-2.5">優先度</th><th class="p-2.5">ステータス</th><th class="p-2.5 w-10 text-center">操作</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-800/60">
+                  <tr v-for="(defect, index) in activePlan.defects" :key="defect.id" class="hover:bg-slate-850">
+                    <td class="p-2.5 font-mono text-cyan-400 font-bold"><input type="text" v-model="defect.ticketId" class="w-20 bg-slate-950 border border-slate-800 rounded p-1"></td>
+                    <td class="p-2.5"><input type="text" v-model="defect.title" class="w-full bg-slate-950 text-slate-200 border border-slate-800 rounded p-1"></td>
+                    <td class="p-2.5"><select v-model="defect.severity" class="bg-slate-950 text-slate-300 border border-slate-800 rounded p-1"><option>Blocker</option><option>Critical</option><option>Major</option><option>Minor</option></select></td>
+                    <td class="p-2.5"><select v-model="defect.priority" class="bg-slate-950 text-slate-300 border border-slate-800 rounded p-1"><option>High</option><option>Medium</option><option>Low</option></select></td>
+                    <td class="p-2.5"><select v-model="defect.status" class="bg-slate-950 text-slate-300 border border-slate-800 rounded p-1 font-bold"><option>New</option><option>Assigned</option><option>Resolved</option><option>Closed</option><option>Reopened</option></select></td>
+                    <td class="p-2.5 text-center"><button @click="activePlan.defects.splice(index, 1)" class="text-slate-500 hover:text-rose-400 transition"><i class="fa-regular fa-trash-can"></i></button></td>
+                  </tr>
+                  <tr v-if="activePlan.defects.length === 0"><td colspan="6" class="p-6 text-center text-slate-500">登録された欠陥はありません。</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- ISO規格ヘルプモーダル -->
+    <div v-if="showIsoModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div class="bg-dark-900 border border-slate-800 rounded-2xl max-w-2xl w-full p-6 shadow-2xl relative">
+        <button @click="showIsoModal = false" class="absolute top-4 right-4 text-slate-400 hover:text-slate-100"><i class="fa-solid fa-xmark text-lg"></i></button>
+        <h3 class="text-base font-bold text-slate-100 mb-4 flex items-center gap-2"><i class="fa-solid fa-book-bookmark text-cyan-400"></i> ISO/IEC/IEEE 29119 品質メトリクス規格解説</h3>
+        <div class="space-y-4 text-xs text-slate-300 leading-relaxed max-h-[70vh] overflow-y-auto pr-2">
+          <div class="bg-slate-950 p-4 rounded-xl border border-slate-800">
+            <h4 class="font-bold text-cyan-400 mb-1">1. 欠陥除去効率 (Defect Removal Efficiency: DRE)</h4>
+            <p class="text-slate-400">ISO/IEC/IEEE 29119-3 および JSTQB で定義される最高位の品質プロセス指標。出荷・リリース前にテストで捕捉できた欠陥の割合を表します。</p>
+            <div class="bg-dark-900 p-2 rounded mt-2 font-mono text-[11px] text-slate-200 border border-slate-800">DRE = [ 出荷前検出バグ数 / (出荷前検出バグ数 + 本番流出バグ数) ] × 100 (%)</div>
+            <p class="mt-2 text-slate-400">※ 業界標準の目標閾値は <strong class="text-slate-200">90%〜95%以上</strong> です。</p>
+          </div>
+          <div class="bg-slate-950 p-4 rounded-xl border border-slate-800">
+            <h4 class="font-bold text-emerald-400 mb-1">2. テスト成功率 (Pass率) & 計画消化率</h4>
+            <p class="text-slate-400">テスト計画で定義された全ケースに対し、実施完了した割合およびPass判定となった割合。出荷可否判定（Exit Criteria）の定量根拠となります。</p>
+          </div>
+          <div class="bg-slate-950 p-4 rounded-xl border border-slate-800">
+            <h4 class="font-bold text-amber-400 mb-1">3. 欠陥検出密度 (Defect Density)</h4>
+            <p class="text-slate-400">プロダクトの規模（KLOC：1,000行単位、またはファンクションポイント数）に対するバグ検出数。モジュールごとの品質偏りや潜在バグを測定します。</p>
+          </div>
+        </div>
+        <div class="mt-6 flex justify-end"><button @click="showIsoModal = false" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl transition">閉じる</button></div>
+      </div>
+    </div>
+
+    <!-- システム設定モーダル -->
+    <div v-if="showSettingsModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div class="bg-dark-900 border border-slate-800 rounded-2xl max-w-3xl w-full p-6 shadow-2xl relative flex flex-col max-h-[85vh]">
+        <button @click="showSettingsModal = false" class="absolute top-4 right-4 text-slate-400 hover:text-slate-100"><i class="fa-solid fa-xmark text-lg"></i></button>
+        <h3 class="text-lg font-bold text-slate-100 mb-6 flex items-center gap-2 border-b border-slate-800 pb-4"><i class="fa-solid fa-sliders text-cyan-400"></i> システム設定 & リファレンス</h3>
+        <div class="overflow-y-auto pr-2 space-y-8 flex-1">
+          <section>
+            <h4 class="text-sm font-bold text-slate-300 mb-3 flex items-center gap-2"><i class="fa-solid fa-book-open text-emerald-400"></i> 本システム準拠の国際規格・参照リファレンス</h4>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <a href="https://www.iso.org/standard/45142.html" target="_blank" class="block bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-cyan-500 rounded-xl p-4 transition group">
+                <div class="font-bold text-cyan-400 text-sm mb-1 group-hover:underline">ISO/IEC/IEEE 29119</div>
+                <p class="text-[11px] text-slate-400">ソフトウェアテストの国際標準規格。テストプロセス、ドキュメント（計画書・仕様書）、設計技法の体系を定義。</p>
+              </a>
+              <a href="https://jstqb.jp/" target="_blank" class="block bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-cyan-500 rounded-xl p-4 transition group">
+                <div class="font-bold text-cyan-400 text-sm mb-1 group-hover:underline">JSTQB / ISTQB</div>
+                <p class="text-[11px] text-slate-400">ソフトウェアテスト技術者資格認定組織。テストレベル・タイプ、欠陥ライフサイクルの定義と基礎概念。</p>
+              </a>
+              <a href="https://iso25000.com/index.php/en/iso-25000-standards/iso-25010" target="_blank" class="block bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-cyan-500 rounded-xl p-4 transition group">
+                <div class="font-bold text-cyan-400 text-sm mb-1 group-hover:underline">ISO/IEC 25010 (SQuaRE)</div>
+                <p class="text-[11px] text-slate-400">システムおよびソフトウェアの品質モデル（機能適合性、性能効率性、セキュリティなど）の定義。</p>
+              </a>
+            </div>
+          </section>
+
+          <section>
+            <h4 class="text-sm font-bold text-slate-300 mb-3 flex items-center gap-2"><i class="fa-solid fa-desktop text-amber-400"></i> アプリケーション設定</h4>
+            <div class="space-y-3">
+              <div class="flex items-center justify-between bg-slate-950 border border-slate-800 rounded-xl p-4">
+                <div><div class="text-sm font-bold text-slate-200">全データのリセット</div><div class="text-[11px] text-slate-500 mt-1">保存されているすべてのテスト計画を削除し、初期状態に戻します。</div></div>
+                <button @click="resetAllData" class="px-3 py-1.5 bg-rose-950/50 hover:bg-rose-900 text-rose-400 text-xs font-bold rounded-lg border border-rose-800 transition">データ初期化</button>
+              </div>
+            </div>
+          </section>
+        </div>
+        <div class="mt-6 pt-4 border-t border-slate-800 flex justify-end">
+          <button @click="showSettingsModal = false" class="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-bold rounded-xl transition">完了</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</body>
+</html>
